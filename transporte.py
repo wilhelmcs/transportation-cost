@@ -3,9 +3,10 @@
 import argparse
 import textwrap
 
-from north_west import  NorhtWestMethod
-from vogel import  VogelMethod
+from method_type import MethodType
+from north_west import NorthWestMethod
 from russell import RussellMethod
+from vogel import VogelMethod
 
 # Argument handler
 parser = argparse.ArgumentParser(
@@ -29,9 +30,14 @@ args = parser.parse_args()
 
 
 def solve():
-    if args.method == 1:
-        method = NorhtWestMethod(file=args.file, method=args.method)
-        method.solve()
+    solving_methods = {
+        MethodType.NORTH_WEST_METHOD: NorthWestMethod,
+        MethodType.VOGEL_METHOD: VogelMethod,
+        MethodType.RUSSELL_METHOD: RussellMethod
+    }
+    desired_method = MethodType(args.method)
+    solver = solving_methods.get(desired_method)(file=args.file, method=desired_method)
+    solver.solve()
 
 
 if __name__ == "__main__":

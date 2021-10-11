@@ -1,37 +1,39 @@
-from method_type import MethodType
 from pandas import DataFrame
 
-
-def change(filename) -> str:
-    filename_no_extension = filename.rsplit('.')[0]
-    return f'{filename_no_extension}_solucion.txt'
+from method_type import MethodType
 
 
 class Writer:
     method: MethodType
 
-    _write_map: dict
+    WRITE_MAP: dict
 
-    def __init__(self, filename: str, method: int):
-        self.filename = change(filename)
-        self.method = MethodType(method)
-        self._write_map = {
+    def __init__(self, filename: str, method_type: MethodType):
+        self.filename = self.change(filename)
+        self.WRITE_MAP = {
             MethodType.VOGEL_METHOD: self.write_vogel_solution,
             MethodType.RUSSELL_METHOD: self.write_russell_solution,
             MethodType.NORTH_WEST_METHOD: self.write_nw_solution,
         }
+        self.writing_method = self.WRITE_MAP.get(method_type)
+
+    @staticmethod
+    def change(filename) -> str:
+        filename_no_extension = filename.rsplit('.')[0]
+        return f'{filename_no_extension}_solucion.txt'
+
+    @staticmethod
+    def frame(matrix) -> DataFrame:
+        return DataFrame(matrix)
 
     def write_solution(self, matrix):
-        return self._write_map.get(self.method)(matrix)
+        return self.writing_method(matrix)
 
     def write_russell_solution(self, matrix):
-        print("russell")
+        pass
 
     def write_vogel_solution(self, matrix):
-        print("vogel")
+        print(f'\n{self.frame(matrix)}\n')
 
     def write_nw_solution(self, matrix):
         print(f'\n{self.frame(matrix)}\n')
-
-    def frame(self, matrix) -> DataFrame:
-        return DataFrame(matrix)
