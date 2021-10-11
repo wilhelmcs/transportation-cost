@@ -1,20 +1,19 @@
 from abc import ABC
 
-from approximation_method import ApproximationMethod, Frac
+from approximation_method import ApproximationMethod
 
 
-class NorhtWestMethod(ApproximationMethod, ABC):
+class NorthWestMethod(ApproximationMethod, ABC):
+    i: int
+    j: int
 
     def __init__(self, file, method):
         super().__init__(file=file, method=method)
         # initial north west position
         self.i, self.j = 0, 0
 
-        self.columns_left = self.columns
-        self.rows_left = self.rows
-
     def solve(self):
-        while self.__has_rows_and_columns_left():
+        while super().has_rows_and_columns_left():
             self.__choose_cost()
             self.writer.write_solution(self.assign_table)
 
@@ -23,12 +22,15 @@ class NorhtWestMethod(ApproximationMethod, ABC):
         demand_value = self.assign_table[self.demand_row][self.j]
         if supply_value < demand_value:
             super().assign(supply_value, self.i, self.j)
+            self.deleted_rows.add(self.i)
             self.i += 1
-            self.columns_left -= 1
-        else:
+        elif demand_value < supply_value:
             super().assign(demand_value, self.i, self.j)
+            self.deleted_cols.add(self.j)
             self.j += 1
-            self.rows_left -= 1
-
-    def __has_rows_and_columns_left(self):
-        return self.columns_left >= 0 and self.rows_left >= 0
+        else:
+            super().assign(supply_value, self.i, self.j)
+            self.deleted_rows.add(self.i)
+            self.deleted_cols.add(self.j)
+            self.i += 1
+            self.j += 1
