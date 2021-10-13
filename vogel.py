@@ -1,9 +1,8 @@
 from abc import ABC
-from typing import Tuple, Any
+from typing import Tuple
 
-import numpy as np
 
-from approximation_method import ApproximationMethod
+from approximation_method import ApproximationMethod, np, Any
 
 
 class VogelMethod(ApproximationMethod, ABC):
@@ -18,7 +17,8 @@ class VogelMethod(ApproximationMethod, ABC):
             self.__update_diff_row()
             self.__update_diff_column()
             self.__choose_cost()
-            self.writer.write_solution(self.assign_table)
+            self.writer.write_solution(self.cost_table)
+        super().optimize()
 
     def __add_diff_column(self) -> None:
         dfi_column = np.zeros((self.rows, 1))
@@ -86,27 +86,25 @@ class VogelMethod(ApproximationMethod, ABC):
     def __choose_cost(self) -> None:
         maximum_supply_diff, i = self.cost_table[self.demand_row][self.columns]
         maximum_demand_diff, j = self.cost_table[self.rows][self.supply_column]
-        if maximum_supply_diff > maximum_demand_diff:
+        if maximum_supply_diff >= maximum_demand_diff:
             j = self.__minimum_index_in_row(i)
             super().assign(*self.best_value_at(i, j))
-        elif maximum_demand_diff > maximum_supply_diff:
-            i = self.__minimum_index_in_column(j)
-            super().assign(*self.best_value_at(i, j))
         else:
+            i = self.__minimum_index_in_column(j)
             super().assign(*self.best_value_at(i, j))
 
     def __minimum_index_in_row(self, i: int):
         costs = self.cost_table[i][:self.supply_column]
         costs_left = np.delete(costs, list(self.deleted_cols))
         lowest_cost = np.min(costs_left)
-        j = np.where(costs == lowest_cost)[0][0]
+        [[j]] = np.where(costs == lowest_cost)
         return j
 
     def __minimum_index_in_column(self, j: int):
         costs = self.cost_table[:, j][:self.demand_row]
         costs_left = np.delete(costs, list(self.deleted_rows))
         lowest_cost = np.min(costs_left)
-        i = np.where(costs == lowest_cost)[0][0]
+        [[i]] = np.where(costs == lowest_cost)
         return i
 
     def best_value_at(self, i: int, j: int) -> Tuple[Any, Any, Any]:
