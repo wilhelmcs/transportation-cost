@@ -94,17 +94,19 @@ class VogelMethod(ApproximationMethod, ABC):
             super().assign(*self.best_value_at(i, j))
 
     def __minimum_index_in_row(self, i: int):
+        # TODO improve where condition
         costs = self.cost_table[i][:self.supply_column]
         costs_left = np.delete(costs, list(self.deleted_cols))
         lowest_cost = np.min(costs_left)
-        [[j]] = np.where(costs == lowest_cost)
+        j = list(set(np.where(costs == lowest_cost)[0]) - self.deleted_cols)[0]
         return j
 
     def __minimum_index_in_column(self, j: int):
+        # TODO improve where condition
         costs = self.cost_table[:, j][:self.demand_row]
         costs_left = np.delete(costs, list(self.deleted_rows))
         lowest_cost = np.min(costs_left)
-        [[i]] = np.where(costs == lowest_cost)
+        i = list(set(np.where(costs == lowest_cost)[0]) - self.deleted_rows)[0]
         return i
 
     def best_value_at(self, i: int, j: int) -> Tuple[Any, Any, Any]:
