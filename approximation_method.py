@@ -17,6 +17,7 @@ class ApproximationMethod:
 
     improvable: bool
     entrance_indicator: tuple
+    loop: list
 
     rows: int
     columns: int
@@ -44,6 +45,7 @@ class ApproximationMethod:
         self.most_assigned_row = -1
         self.most_assigned_column = -1
         self.entrance_indicator = tuple()
+        self.loop = list()
         self.unassigned_indices = set()
         self.assigned_indices = set()
         self.deleted_rows = set()
@@ -60,14 +62,17 @@ class ApproximationMethod:
     def solve(self):
         pass
 
-    def assign(self, assignment: Any, i: int, j: int, new_demmand_and_supply=True) -> None:
+    def assignment(self, pos):
+        return self.assign_table[pos]
+
+    def assign(self, assignment: Any, i: int, j: int, new_demand_and_supply=True) -> None:
 
         self.assign_table[i][j] = assignment
         self.assigned_indices.add((i, j))
         self.unassigned_indices.discard((i, j))
         self.increment_assignments_of(i, j)
 
-        if new_demmand_and_supply:
+        if new_demand_and_supply:
             self.assign_table[i][self.supply_column] -= assignment
             self.assign_table[self.demand_row][j] -= assignment
 
@@ -100,8 +105,10 @@ class ApproximationMethod:
         self.__find_non_basic_indicators()
 
         while self.improvable:
-            loop = self.__create_loop(start=[self.entrance_indicator])
-            self.assign_from(loop)
+            self.__create_loop()
+            self.__assign_loop()
+            self.writer.write_solution(matrix=self.assign_table)
+            self.writer.write_solution(matrix=self.transportation_table)
             self.__find_dual_variables()
             self.__find_non_basic_indicators()
 
@@ -109,27 +116,30 @@ class ApproximationMethod:
         return len(self.deleted_rows) != self.rows - 1 \
                and len(self.deleted_cols) != self.columns - 1
 
-    def assign_from(self, loop):
-        even_indices, odd_indices = loop[0::2], loop[1::2]
+    def total_cost(self) -> int:
+        total = 0
+        for pos in self.assigned_indices:
+            total += self.assign_table[pos] * self.cost_table[pos]
+        return total
 
-        def assignment(pos):
-            return self.assign_table[pos]
+    def __assign_loop(self):
+        even_indices, odd_indices = self.loop[0::2], self.loop[1::2]
 
-        leaving_position = min(odd_indices, key=assignment)
-        leaving_assignment = assignment(leaving_position)
+        leaving_position = min(odd_indices, key=self.assignment)
+        leaving_assignment = self.assignment(leaving_position)
 
         unassigned = set()
-        for i, j in self.assigned_indices:
-            if (i, j) in even_indices:
-                self.assign_table[i][j] += leaving_assignment
-            if (i, j) in odd_indices:
-                self.assign_table[i][j] -= leaving_assignment
-                can_be_unassigned = self.assign_table[i][j] == 0
+        for pos in self.assigned_indices:
+            if pos in even_indices:
+                self.assign_table[pos] += leaving_assignment
+            if pos in odd_indices:
+                self.assign_table[pos] -= leaving_assignment
+                can_be_unassigned = self.assign_table[pos] == 0
                 if can_be_unassigned:
-                    unassigned.add((i, j))
-                    self.unassign(i, j)
+                    unassigned.add(pos)
+                    self.unassign(*pos)
         self.assigned_indices -= unassigned
-        self.assign(leaving_assignment, *self.entrance_indicator, new_demmand_and_supply=False)
+        self.assign(leaving_assignment, *self.entrance_indicator, new_demand_and_supply=False)
 
     def __create_cost_table(self, file) -> None:
         # obtain first row of txt file and make it supply column
@@ -193,9 +203,12 @@ class ApproximationMethod:
         self.transportation_table = np.empty((self.rows, self.columns), dtype=object)
         self.transportation_table[self.v_row][self.u_column] = "*"
 
-    def __create_loop(self, start):
+    def __create_loop(self):
+        start = [self.entrance_indicator]
+
         def find(loop):
-            if len(loop) > 3:
+            one_neighbor_left = len(loop) > 3
+            if one_neighbor_left:
                 not_visited = start
                 closable = len(self.find_neighbors(loop, not_visited)) == 1
                 if closable:
@@ -207,7 +220,7 @@ class ApproximationMethod:
                 if new_loop:
                     return new_loop
 
-        return find(loop=start)
+        self.loop = find(loop=start)
 
     @staticmethod
     def find_neighbors(loop: list, not_visited: list):
@@ -218,7 +231,8 @@ class ApproximationMethod:
                 row_neighbors.append((i, j))
             if j == last_column:
                 column_neighbors.append((i, j))
-        if len(loop) < 2:
+        only_origin_present = len(loop) < 2
+        if only_origin_present:
             return row_neighbors + column_neighbors
         else:
             previous_row, _ = loop[-2]
@@ -253,10 +267,12 @@ class ApproximationMethod:
             eq = u + v - c
             equations.append(eq)
         solved = linsolve(equations, (u_vars + v_vars)).args[0]
-        solved_u = list(map(int, solved[:self.u_column]))
-        solved_v = list(map(int, solved[self.u_column:]))
-        self.transportation_table[self.v_row, 0:self.u_column] = solved_v
-        self.transportation_table[0:self.v_row, self.u_column] = solved_u
+
+        amount_of_u = self.rows-1
+        solved_u = list(map(int, solved[:amount_of_u]))
+        solved_v = list(map(int, solved[amount_of_u:]))
+        self.transportation_table[-1, :-1] = solved_v
+        self.transportation_table[:-1, -1] = solved_u
 
     def __find_equation_vars(self):
         if self.assignments_of_column[self.most_assigned_column] >= self.assignments_of_row[self.most_assigned_row]:
@@ -265,7 +281,7 @@ class ApproximationMethod:
             zero_candidate = Symbol(f'U{self.most_assigned_row}')
 
         v_vars = list()
-        for i in range(1, self.rows):
+        for i in range(1, self.columns):
             v = Symbol(f'V{i}')
             if v == zero_candidate:
                 v_vars.append(0)
@@ -273,7 +289,7 @@ class ApproximationMethod:
                 v_vars.append(v)
 
         u_vars = list()
-        for j in range(1, self.columns):
+        for j in range(1, self.rows):
             u = Symbol(f'U{j}')
             if u == zero_candidate:
                 u_vars.append(0)

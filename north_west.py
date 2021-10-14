@@ -18,6 +18,7 @@ class NorthWestMethod(ApproximationMethod, ABC):
         while super().has_rows_and_columns_left():
             self.__choose_cost()
             self.writer.write_solution(self.assign_table)
+        super().improve()
 
     def __choose_cost(self) -> None:
         # determine lowest value between supply & demand
