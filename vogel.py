@@ -18,7 +18,7 @@ class VogelMethod(ApproximationMethod, ABC):
             self.__update_diff_column()
             self.__choose_cost()
             self.writer.write_solution(self.cost_table)
-        super().optimize()
+        super().improve()
 
     def __add_diff_column(self) -> None:
         dfi_column = np.zeros((self.rows, 1))

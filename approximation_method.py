@@ -15,6 +15,9 @@ class ApproximationMethod:
 
     writer: Writer
 
+    improvable: bool
+    entrance_indicator: tuple
+
     rows: int
     columns: int
 
@@ -37,8 +40,10 @@ class ApproximationMethod:
     assignments_of_column: dict
 
     def __init__(self, file, method: MethodType):
+        self.improvable = True
         self.most_assigned_row = -1
         self.most_assigned_column = -1
+        self.entrance_indicator = tuple()
         self.unassigned_indices = set()
         self.assigned_indices = set()
         self.deleted_rows = set()
@@ -54,6 +59,77 @@ class ApproximationMethod:
     @abstractmethod
     def solve(self):
         pass
+
+    def assign(self, assignment: Any, i: int, j: int, new_demmand_and_supply=True) -> None:
+
+        self.assign_table[i][j] = assignment
+        self.assigned_indices.add((i, j))
+        self.unassigned_indices.discard((i, j))
+        self.increment_assignments_of(i, j)
+
+        if new_demmand_and_supply:
+            self.assign_table[i][self.supply_column] -= assignment
+            self.assign_table[self.demand_row][j] -= assignment
+
+    def increment_assignments_of(self, i, j):
+        i, j = i + 1, j + 1
+        self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) + 1
+        self.assignments_of_column[j] = self.assignments_of_column.get(j, 0) + 1
+
+        if self.assignments_of_row[i] > self.assignments_of_row[self.most_assigned_row]:
+            self.most_assigned_row = i
+
+        if self.assignments_of_column[j] > self.assignments_of_column[self.most_assigned_column]:
+            self.most_assigned_column = j
+
+    def unassign(self, i: int, j: int) -> None:
+        self.unassigned_indices.add((i, j))
+        self.decrement_assignments_of(i, j)
+
+    def decrement_assignments_of(self, i, j):
+        i, j = i + 1, j + 1
+        self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) - 1
+        if self.most_assigned_row == i:
+            self.most_assigned_row = max(self.assignments_of_row)
+
+        if self.most_assigned_column:
+            self.most_assigned_column = max(self.assignments_of_column)
+
+    def improve(self):
+        self.__find_dual_variables()
+        self.__find_non_basic_indicators()
+
+        while self.improvable:
+            loop = self.__create_loop(start=[self.entrance_indicator])
+            self.assign_from(loop)
+            self.__find_dual_variables()
+            self.__find_non_basic_indicators()
+
+    def has_rows_and_columns_left(self) -> bool:
+        return len(self.deleted_rows) != self.rows - 1 \
+               and len(self.deleted_cols) != self.columns - 1
+
+    def assign_from(self, loop):
+        even_indices, odd_indices = loop[0::2], loop[1::2]
+
+        def assignment(pos):
+            return self.assign_table[pos]
+
+        leaving_position = min(odd_indices, key=assignment)
+        leaving_assignment = assignment(leaving_position)
+
+        unassigned = set()
+        for i, j in self.assigned_indices:
+            if (i, j) in even_indices:
+                self.assign_table[i][j] += leaving_assignment
+            if (i, j) in odd_indices:
+                self.assign_table[i][j] -= leaving_assignment
+                can_be_unassigned = self.assign_table[i][j] == 0
+                if can_be_unassigned:
+                    unassigned.add((i, j))
+                    self.unassign(i, j)
+        self.assigned_indices -= unassigned
+        self.assign(leaving_assignment, *self.entrance_indicator, new_demmand_and_supply=False)
 
     def __create_cost_table(self, file) -> None:
         # obtain first row of txt file and make it supply column
@@ -117,16 +193,55 @@ class ApproximationMethod:
         self.transportation_table = np.empty((self.rows, self.columns), dtype=object)
         self.transportation_table[self.v_row][self.u_column] = "*"
 
-    def optimize(self):
-        self.__find_dual_variables()
-        self.__find_non_basic_indicators()
+    def __create_loop(self, start):
+        def find(loop):
+            if len(loop) > 3:
+                not_visited = start
+                closable = len(self.find_neighbors(loop, not_visited)) == 1
+                if closable:
+                    return loop
+            not_visited = list(self.assigned_indices - set(loop))
+            possible_neighbors = self.find_neighbors(loop, not_visited)
+            for neighbor in possible_neighbors:
+                new_loop = find(loop + [neighbor])
+                if new_loop:
+                    return new_loop
+
+        return find(loop=start)
+
+    @staticmethod
+    def find_neighbors(loop: list, not_visited: list):
+        last_row, last_column = loop[-1]
+        row_neighbors, column_neighbors = list(), list()
+        for i, j in not_visited:
+            if i == last_row:
+                row_neighbors.append((i, j))
+            if j == last_column:
+                column_neighbors.append((i, j))
+        if len(loop) < 2:
+            return row_neighbors + column_neighbors
+        else:
+            previous_row, _ = loop[-2]
+            is_row_move = previous_row == last_row
+            if is_row_move:
+                return column_neighbors
+            return row_neighbors
 
     def __find_non_basic_indicators(self):
+        # assume that it isn't improvable from the start
+        self.improvable = False
+        best_indicator = -np.inf
         for i, j in self.unassigned_indices:
             u = self.transportation_table[i][self.u_column]
             v = self.transportation_table[self.v_row][j]
             c = self.cost_table[i][j]
-            self.transportation_table[i][j] = u + v - c
+            nb_indicator = int(u + v - c)
+            if nb_indicator > 0:
+                self.improvable = True
+                if nb_indicator > best_indicator:
+                    best_indicator = nb_indicator
+                    self.entrance_indicator = (i, j)
+            self.transportation_table[i][j] = nb_indicator
 
     def __find_dual_variables(self):
         u_vars, v_vars = self.__find_equation_vars()
@@ -134,10 +249,12 @@ class ApproximationMethod:
         for i, j in self.assigned_indices:
             u = u_vars[i]
             v = v_vars[j]
-            eq = u + v - self.cost_table[i][j]
+            c = self.cost_table[i][j]
+            eq = u + v - c
             equations.append(eq)
         solved = linsolve(equations, (u_vars + v_vars)).args[0]
-        solved_u, solved_v = solved[:self.u_column], solved[self.u_column:]
+        solved_u = list(map(int, solved[:self.u_column]))
+        solved_v = list(map(int, solved[self.u_column:]))
         self.transportation_table[self.v_row, 0:self.u_column] = solved_v
         self.transportation_table[0:self.v_row, self.u_column] = solved_u
 
@@ -164,26 +281,3 @@ class ApproximationMethod:
                 u_vars.append(u)
 
         return tuple(u_vars), tuple(v_vars)
-
-    def assign(self, cost: Any, i: int, j: int) -> None:
-        self.assign_table[i][self.supply_column] -= cost
-        self.assign_table[self.demand_row][j] -= cost
-        self.assign_table[i][j] = cost
-        self.assigned_indices.add((i, j))
-        self.unassigned_indices.discard((i, j))
-        self.increment_assignments_of(i, j)
-
-    def has_rows_and_columns_left(self) -> bool:
-        return len(self.deleted_rows) != self.rows - 1 \
-               and len(self.deleted_cols) != self.columns - 1
-
-    def increment_assignments_of(self, i, j):
-        i, j = i+1, j+1
-        self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) + 1
-        self.assignments_of_column[j] = self.assignments_of_column.get(j, 0) + 1
-
-        if self.assignments_of_row[i] > self.assignments_of_row[self.most_assigned_row]:
-            self.most_assigned_row = i
-
-        if self.assignments_of_column[j] > self.assignments_of_column[self.most_assigned_column]:
-            self.most_assigned_column = j
