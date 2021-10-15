@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from fractions import Fraction as Frac
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 from sympy import Symbol, linsolve
@@ -62,6 +62,10 @@ class ApproximationMethod:
     def solve(self):
         pass
 
+    @abstractmethod
+    def choose_cost(self):
+        pass
+
     def assignment(self, pos):
         return self.assign_table[pos]
 
@@ -76,6 +80,23 @@ class ApproximationMethod:
             self.assign_table[i][self.supply_column] -= assignment
             self.assign_table[self.demand_row][j] -= assignment
 
+    def best_value_at(self, i: int, j: int) -> Tuple[int, int, int]:
+        # determine lowest value between supply & demand
+        demand_value = self.assign_table[self.demand_row][j]
+        supply_value = self.assign_table[i][self.supply_column]
+        best = min(demand_value, supply_value)
+        if demand_value < supply_value:
+            # mark the column as unavailable from now on
+            self.deleted_cols.add(j)
+        elif supply_value < demand_value:
+            # mark the row as unavailable from now on
+            self.deleted_rows.add(i)
+        else:
+            # mark both the row & column as unavailable from now on
+            self.deleted_rows.add(i)
+            self.deleted_cols.add(j)
+        return best, i, j
+
     def increment_assignments_of(self, i, j):
         i, j = i + 1, j + 1
         self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) + 1
@@ -87,10 +108,6 @@ class ApproximationMethod:
         if self.assignments_of_column[j] > self.assignments_of_column[self.most_assigned_column]:
             self.most_assigned_column = j
 
-    def unassign(self, i: int, j: int) -> None:
-        self.unassigned_indices.add((i, j))
-        self.decrement_assignments_of(i, j)
-
     def decrement_assignments_of(self, i, j):
         i, j = i + 1, j + 1
         self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) - 1
@@ -99,6 +116,14 @@ class ApproximationMethod:
 
         if self.most_assigned_column:
             self.most_assigned_column = max(self.assignments_of_column)
+
+    def has_rows_and_columns_left(self) -> bool:
+        return len(self.deleted_rows) != self.rows - 1 \
+               and len(self.deleted_cols) != self.columns - 1
+
+    def halt(self, message):
+        self.writer.write_halting(message)
+        exit(1)
 
     def improve(self):
         self.__find_dual_variables()
@@ -112,15 +137,15 @@ class ApproximationMethod:
             self.__find_dual_variables()
             self.__find_non_basic_indicators()
 
-    def has_rows_and_columns_left(self) -> bool:
-        return len(self.deleted_rows) != self.rows - 1 \
-               and len(self.deleted_cols) != self.columns - 1
-
     def total_cost(self) -> int:
         total = 0
         for pos in self.assigned_indices:
             total += self.assign_table[pos] * self.cost_table[pos]
         return total
+
+    def unassign(self, i: int, j: int) -> None:
+        self.unassigned_indices.add((i, j))
+        self.decrement_assignments_of(i, j)
 
     def __assign_loop(self):
         even_indices, odd_indices = self.loop[0::2], self.loop[1::2]
@@ -231,8 +256,8 @@ class ApproximationMethod:
                 row_neighbors.append((i, j))
             if j == last_column:
                 column_neighbors.append((i, j))
-        only_origin_present = len(loop) < 2
-        if only_origin_present:
+        loop_incomplete = len(loop) < 2
+        if loop_incomplete:
             return row_neighbors + column_neighbors
         else:
             previous_row, _ = loop[-2]
@@ -255,9 +280,12 @@ class ApproximationMethod:
                 if nb_indicator > best_indicator:
                     best_indicator = nb_indicator
                     self.entrance_indicator = (i, j)
+            if nb_indicator == 0:
+                self.halt(message="Multiple Solutions Found")
             self.transportation_table[i][j] = nb_indicator
 
     def __find_dual_variables(self):
+        self.__check_degenerated_solutions()
         u_vars, v_vars = self.__find_equation_vars()
         equations = list()
         for i, j in self.assigned_indices:
@@ -267,7 +295,6 @@ class ApproximationMethod:
             eq = u + v - c
             equations.append(eq)
         solved = linsolve(equations, (u_vars + v_vars)).args[0]
-
         amount_of_u = self.rows-1
         solved_u = list(map(int, solved[:amount_of_u]))
         solved_v = list(map(int, solved[amount_of_u:]))
@@ -297,3 +324,8 @@ class ApproximationMethod:
                 u_vars.append(u)
 
         return tuple(u_vars), tuple(v_vars)
+
+    def __check_degenerated_solutions(self):
+        assigned = len(self.assigned_indices)
+        if assigned != self.columns + self.rows - 1:
+            self.halt(message="Degenerated Solutions Found")

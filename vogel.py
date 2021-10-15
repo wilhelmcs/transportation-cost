@@ -1,8 +1,7 @@
 from abc import ABC
-from typing import Tuple
 
-
-from approximation_method import ApproximationMethod, np, Any
+from approximation_method import ApproximationMethod
+import numpy as np
 
 
 class VogelMethod(ApproximationMethod, ABC):
@@ -16,7 +15,7 @@ class VogelMethod(ApproximationMethod, ABC):
         while super().has_rows_and_columns_left():
             self.__update_diff_row()
             self.__update_diff_column()
-            self.__choose_cost()
+            self.choose_cost()
             self.writer.write_solution(self.cost_table)
         super().improve()
 
@@ -32,12 +31,12 @@ class VogelMethod(ApproximationMethod, ABC):
         biggest_diff, biggest_col = -np.inf, -1
         consumers = np.transpose(self.cost_table[:self.demand_row, :self.supply_column])
         # for each column find the lowest difference in terms of cost
-        for col, cost in enumerate(consumers):
+        for col, costs in enumerate(consumers):
             # flag deleted columns
             if col in self.deleted_cols:
                 self.cost_table[self.rows][col] = -np.inf
                 continue
-            diff = self.minimum_diff(cost, omit=self.deleted_rows)
+            diff = self.minimum_diff(costs, omit=self.deleted_rows)
             if diff > biggest_diff:
                 biggest_diff = diff
                 biggest_col = col
@@ -63,7 +62,7 @@ class VogelMethod(ApproximationMethod, ABC):
         self.cost_table[self.demand_row][self.columns] = (biggest_diff, biggest_row)
 
     @staticmethod
-    def minimum_diff(costs, omit) -> Any:
+    def minimum_diff(costs, omit) -> int:
         # find diff between two lowest elements
         lowest, second_lowest = np.inf, np.inf
         for i, c in enumerate(costs):
@@ -83,15 +82,15 @@ class VogelMethod(ApproximationMethod, ABC):
         else:
             return second_lowest - lowest
 
-    def __choose_cost(self) -> None:
+    def choose_cost(self) -> None:
         maximum_supply_diff, i = self.cost_table[self.demand_row][self.columns]
         maximum_demand_diff, j = self.cost_table[self.rows][self.supply_column]
         if maximum_supply_diff >= maximum_demand_diff:
             j = self.__minimum_index_in_row(i)
-            super().assign(*self.best_value_at(i, j))
+            self.assign(*self.best_value_at(i, j))
         else:
             i = self.__minimum_index_in_column(j)
-            super().assign(*self.best_value_at(i, j))
+            self.assign(*self.best_value_at(i, j))
 
     def __minimum_index_in_row(self, i: int):
         # TODO improve where condition
@@ -108,20 +107,3 @@ class VogelMethod(ApproximationMethod, ABC):
         lowest_cost = np.min(costs_left)
         i = list(set(np.where(costs == lowest_cost)[0]) - self.deleted_rows)[0]
         return i
-
-    def best_value_at(self, i: int, j: int) -> Tuple[Any, Any, Any]:
-        # determine lowest value between supply & demand
-        demand_value = self.assign_table[self.demand_row][j]
-        supply_value = self.assign_table[i][self.supply_column]
-        best = min(demand_value, supply_value)
-        if demand_value < supply_value:
-            # mark the column as unavailable from now on
-            self.deleted_cols.add(j)
-        elif supply_value < demand_value:
-            # mark the row as unavailable from now on
-            self.deleted_rows.add(i)
-        else:
-            # mark both the row & column as unavailable from now on
-            self.deleted_rows.add(i)
-            self.deleted_cols.add(j)
-        return best, i, j

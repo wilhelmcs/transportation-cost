@@ -15,29 +15,23 @@ class NorthWestMethod(ApproximationMethod, ABC):
         self.i, self.j = 0, 0
 
     def solve(self):
-        while super().has_rows_and_columns_left():
-            self.__choose_cost()
+        while self.has_rows_and_columns_left():
+            self.choose_cost()
             self.writer.write_solution(self.assign_table)
-        super().improve()
+        self.improve()
 
-    def __choose_cost(self) -> None:
-        # determine lowest value between supply & demand
-        supply_value = self.assign_table[self.i][self.supply_column]
-        demand_value = self.assign_table[self.demand_row][self.j]
-        if supply_value < demand_value:
-            super().assign(supply_value, self.i, self.j)
-            # mark the row as unavailable from now on
-            self.deleted_rows.add(self.i)
-            self.i += 1
-        elif demand_value < supply_value:
-            super().assign(demand_value, self.i, self.j)
-            # mark the row as unavailable from now on
-            self.deleted_cols.add(self.j)
-            self.j += 1
-        else:
-            super().assign(supply_value, self.i, self.j)
-            # mark both the row & column as unavailable from now on
-            self.deleted_rows.add(self.i)
-            self.deleted_cols.add(self.j)
-            self.i += 1
-            self.j += 1
+    def choose_cost(self) -> None:
+
+        previous_rows = len(self.deleted_rows)
+        previous_columns = len(self.deleted_cols)
+
+        best = self.best_value_at(self.i, self.j)
+        self.assign(*best)
+
+        current_rows = len(self.deleted_rows)
+        current_columns = len(self.deleted_cols)
+
+        self.j += current_columns - previous_columns
+        self.i += current_rows - previous_rows
+
+

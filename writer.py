@@ -26,11 +26,15 @@ class Writer:
     def frame(matrix) -> DataFrame:
         return DataFrame(matrix)
 
+    @staticmethod
+    def write_halting(message):
+        print(f'{message}')
+
     def write_solution(self, matrix):
         return self.writing_method(matrix)
 
     def write_russell_solution(self, matrix):
-        pass
+        print(f'\n{self.frame(matrix)}\n')
 
     def write_vogel_solution(self, matrix):
         print(f'\n{self.frame(matrix)}\n')
