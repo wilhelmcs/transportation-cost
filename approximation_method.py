@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from fractions import Fraction as Frac
-from typing import Any, Tuple
+from typing import Any, Tuple, List, NoReturn
 
 import numpy as np
 from sympy import Symbol, linsolve
@@ -59,14 +59,14 @@ class ApproximationMethod:
         self.__create_transportation_table()
 
     @abstractmethod
-    def solve(self):
+    def solve(self) -> None:
         pass
 
     @abstractmethod
-    def choose_cost(self):
+    def choose_cost(self) -> None:
         pass
 
-    def assignment(self, pos):
+    def assignment(self, pos: tuple) -> float:
         return self.assign_table[pos]
 
     def assign(self, assignment: Any, i: int, j: int, new_demand_and_supply=True) -> None:
@@ -97,7 +97,7 @@ class ApproximationMethod:
             self.deleted_cols.add(j)
         return best, i, j
 
-    def increment_assignments_of(self, i, j):
+    def increment_assignments_of(self, i: int, j: int):
         i, j = i + 1, j + 1
         self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) + 1
         self.assignments_of_column[j] = self.assignments_of_column.get(j, 0) + 1
@@ -108,7 +108,7 @@ class ApproximationMethod:
         if self.assignments_of_column[j] > self.assignments_of_column[self.most_assigned_column]:
             self.most_assigned_column = j
 
-    def decrement_assignments_of(self, i, j):
+    def decrement_assignments_of(self, i: int, j: int):
         i, j = i + 1, j + 1
         self.assignments_of_row[i] = self.assignments_of_row.get(i, 0) - 1
         if self.most_assigned_row == i:
@@ -121,11 +121,11 @@ class ApproximationMethod:
         return len(self.deleted_rows) != self.rows - 1 \
                and len(self.deleted_cols) != self.columns - 1
 
-    def halt(self, message):
+    def halt(self, message) -> NoReturn:
         self.writer.write_halting(message)
         exit(1)
 
-    def improve(self):
+    def improve(self) -> None:
         self.__find_dual_variables()
         self.__find_non_basic_indicators()
 
@@ -192,7 +192,7 @@ class ApproximationMethod:
         # balance the problem in case of different sums
         demand_sum = np.sum(self.cost_table[self.demand_row][:-1])
         supply_sum = np.sum(self.cost_table[:, self.supply_column][:-1])
-        diff = abs(demand_sum - supply_sum)
+        diff = int(abs(demand_sum - supply_sum))
         if demand_sum < supply_sum:
             self.__insert_fictional_demand(fictional_value=diff)
         elif supply_sum < demand_sum:
@@ -200,14 +200,14 @@ class ApproximationMethod:
         else:
             pass
 
-    def __insert_fictional_demand(self, fictional_value) -> None:
+    def __insert_fictional_demand(self, fictional_value: int) -> None:
         # fictional/dummy demand row with zeros
-        fictional_demand = [self.demand_row * [0] + [fictional_value]]
+        fictional_demand = [self.demand_row * [0.0] + [fictional_value]]
         self.cost_table = np.insert(self.cost_table, -1, values=fictional_demand, axis=1)
         self.columns += 1
         self.supply_column += 1
 
-    def __insert_fictional_supply(self, fictional_value) -> None:
+    def __insert_fictional_supply(self, fictional_value: int) -> None:
         # fictional/dummy supply column with zeros
         fictional_supply = self.supply_column * [0] + [fictional_value]
         self.cost_table = np.insert(self.cost_table, -1, values=fictional_supply, axis=0)
@@ -228,10 +228,10 @@ class ApproximationMethod:
         self.transportation_table = np.empty((self.rows, self.columns), dtype=object)
         self.transportation_table[self.v_row][self.u_column] = "*"
 
-    def __create_loop(self):
+    def __create_loop(self) -> None:
         start = [self.entrance_indicator]
 
-        def find(loop):
+        def find(loop: List[Tuple]) -> List[Tuple]:
             one_neighbor_left = len(loop) > 3
             if one_neighbor_left:
                 not_visited = start
@@ -248,7 +248,7 @@ class ApproximationMethod:
         self.loop = find(loop=start)
 
     @staticmethod
-    def find_neighbors(loop: list, not_visited: list):
+    def find_neighbors(loop: List[Tuple], not_visited: List[Tuple]) -> List[Tuple]:
         last_row, last_column = loop[-1]
         row_neighbors, column_neighbors = list(), list()
         for i, j in not_visited:
@@ -266,7 +266,7 @@ class ApproximationMethod:
                 return column_neighbors
             return row_neighbors
 
-    def __find_non_basic_indicators(self):
+    def __find_non_basic_indicators(self) -> None:
         # assume that it isn't improvable from the start
         self.improvable = False
         best_indicator = -np.inf
@@ -284,7 +284,7 @@ class ApproximationMethod:
                 self.halt(message="Multiple Solutions Found")
             self.transportation_table[i][j] = nb_indicator
 
-    def __find_dual_variables(self):
+    def __find_dual_variables(self) -> None:
         self.__check_degenerated_solutions()
         u_vars, v_vars = self.__find_equation_vars()
         equations = list()
@@ -301,8 +301,9 @@ class ApproximationMethod:
         self.transportation_table[-1, :-1] = solved_v
         self.transportation_table[:-1, -1] = solved_u
 
-    def __find_equation_vars(self):
-        if self.assignments_of_column[self.most_assigned_column] >= self.assignments_of_row[self.most_assigned_row]:
+    def __find_equation_vars(self) -> Tuple:
+        if self.assignments_of_column[self.most_assigned_column] >= \
+                self.assignments_of_row[self.most_assigned_row]:
             zero_candidate = Symbol(f'V{self.most_assigned_column}')
         else:
             zero_candidate = Symbol(f'U{self.most_assigned_row}')
@@ -325,7 +326,7 @@ class ApproximationMethod:
 
         return tuple(u_vars), tuple(v_vars)
 
-    def __check_degenerated_solutions(self):
+    def __check_degenerated_solutions(self) -> None:
         assigned = len(self.assigned_indices)
         if assigned != self.columns + self.rows - 1:
             self.halt(message="Degenerated Solutions Found")

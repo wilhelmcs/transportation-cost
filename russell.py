@@ -20,12 +20,12 @@ class RussellMethod(ApproximationMethod, ABC):
             self.choose_cost()
             self.writer.write_solution(self.assign_table)
         del self.russell_table
-        super().improve()
+        self.improve()
 
-    def __create_russell_table(self):
+    def __create_russell_table(self) -> None:
         self.russell_table = np.zeros(self.cost_table.shape, dtype=object)
 
-    def __update_russell_table(self):
+    def __update_russell_table(self) -> None:
         self.__update_max_u_column()
         self.__update_max_v_row()
         max_value = -np.inf
@@ -39,7 +39,7 @@ class RussellMethod(ApproximationMethod, ABC):
                 self.max_pos = (i, j)
             self.russell_table[i][j] = russell_value
 
-    def __update_max_u_column(self):
+    def __update_max_u_column(self) -> None:
         suppliers = self.cost_table[:self.demand_row, :self.supply_column]
         # for each row find the greatest value in terms of cost
         for row, costs in enumerate(suppliers):
@@ -49,7 +49,7 @@ class RussellMethod(ApproximationMethod, ABC):
                 u = max(costs)
             self.russell_table[row][self.u_column] = u
 
-    def __update_max_v_row(self):
+    def __update_max_v_row(self) -> None:
         consumers = np.transpose(self.cost_table[:self.demand_row, :self.supply_column])
         # for each column find the greatest value in terms of cost
         for col, costs in enumerate(consumers):
@@ -59,7 +59,7 @@ class RussellMethod(ApproximationMethod, ABC):
                 v = max(costs)
             self.russell_table[self.v_row][col] = v
 
-    def choose_cost(self):
+    def choose_cost(self) -> None:
         self.russell_table[self.max_pos] = -np.inf
         best = super().best_value_at(*self.max_pos)
         self.assign(*best)

@@ -17,7 +17,7 @@ class VogelMethod(ApproximationMethod, ABC):
             self.__update_diff_column()
             self.choose_cost()
             self.writer.write_solution(self.cost_table)
-        super().improve()
+        self.improve()
 
     def __add_diff_column(self) -> None:
         dfi_column = np.zeros((self.rows, 1))
@@ -62,7 +62,7 @@ class VogelMethod(ApproximationMethod, ABC):
         self.cost_table[self.demand_row][self.columns] = (biggest_diff, biggest_row)
 
     @staticmethod
-    def minimum_diff(costs, omit) -> int:
+    def minimum_diff(costs: np.ndarray, omit: set) -> int:
         # find diff between two lowest elements
         lowest, second_lowest = np.inf, np.inf
         for i, c in enumerate(costs):
@@ -92,7 +92,7 @@ class VogelMethod(ApproximationMethod, ABC):
             i = self.__minimum_index_in_column(j)
             self.assign(*self.best_value_at(i, j))
 
-    def __minimum_index_in_row(self, i: int):
+    def __minimum_index_in_row(self, i: int) -> int:
         # TODO improve where condition
         costs = self.cost_table[i][:self.supply_column]
         costs_left = np.delete(costs, list(self.deleted_cols))
@@ -100,7 +100,7 @@ class VogelMethod(ApproximationMethod, ABC):
         j = list(set(np.where(costs == lowest_cost)[0]) - self.deleted_cols)[0]
         return j
 
-    def __minimum_index_in_column(self, j: int):
+    def __minimum_index_in_column(self, j: int) -> int:
         # TODO improve where condition
         costs = self.cost_table[:, j][:self.demand_row]
         costs_left = np.delete(costs, list(self.deleted_rows))
