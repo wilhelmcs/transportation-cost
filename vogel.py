@@ -16,7 +16,10 @@ class VogelMethod(ApproximationMethod, ABC):
             self.__update_diff_row()
             self.__update_diff_column()
             self.choose_cost()
-            self.writer.write_solution(self.cost_table)
+        self.writer.write_initial_solution(self.assign_table,
+                                           demand=self.cost_table[self.demand_row, :-1],
+                                           supply=self.cost_table[:-1, self.supply_column])
+        self.writer.write_initial_cost(self.total_cost())
         self.improve()
 
     def __add_diff_column(self) -> None:

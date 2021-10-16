@@ -18,8 +18,11 @@ class RussellMethod(ApproximationMethod, ABC):
         while super().has_rows_and_columns_left():
             self.__update_russell_table()
             self.choose_cost()
-            self.writer.write_solution(self.assign_table)
         del self.russell_table
+        self.writer.write_initial_solution(self.assign_table,
+                                           demand=self.cost_table[self.demand_row],
+                                           supply=self.cost_table[:, self.supply_column])
+        self.writer.write_initial_cost(self.total_cost())
         self.improve()
 
     def __create_russell_table(self) -> None:

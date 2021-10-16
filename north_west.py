@@ -17,7 +17,10 @@ class NorthWestMethod(ApproximationMethod, ABC):
     def solve(self):
         while self.has_rows_and_columns_left():
             self.choose_cost()
-            self.writer.write_solution(self.assign_table)
+        self.writer.write_initial_solution(self.assign_table,
+                                           demand=self.cost_table[self.demand_row],
+                                           supply=self.cost_table[:, self.supply_column])
+        self.writer.write_initial_cost(self.total_cost())
         self.improve()
 
     def choose_cost(self) -> None:
@@ -33,5 +36,3 @@ class NorthWestMethod(ApproximationMethod, ABC):
 
         self.j += current_columns - previous_columns
         self.i += current_rows - previous_rows
-
-
