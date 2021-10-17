@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from fractions import Fraction as Frac
-from typing import Any, Tuple, List, NoReturn
+from typing import Any, Tuple, List
 
 import numpy as np
 from sympy import Symbol, linsolve
@@ -123,10 +123,6 @@ class ApproximationMethod:
         return len(self.deleted_rows) != self.rows - 1 \
                and len(self.deleted_cols) != self.columns - 1
 
-    def halt(self, message) -> NoReturn:
-        self.writer.write_halting(message)
-        exit(1)
-
     def improve(self) -> None:
         self.__find_dual_variables()
         self.__find_non_basic_indicators()
@@ -135,9 +131,9 @@ class ApproximationMethod:
         while self.improvable:
             self.__create_loop()
             self.__assign_loop()
-            self.writer.write_transportation_iteration(iteration=i,
-                                                       transportation_matrix=self.transportation_table,
-                                                       assignment_matrix=self.assign_table)
+            self.writer.write_transportation_iteration(transportation_matrix=self.transportation_table,
+                                                       assignment_matrix=self.assign_table,
+                                                       iteration=i)
             self.writer.write_loop(self.loop, entering=self.entering_variable, leaving=self.leaving_variable)
             self.writer.write_current_cost(self.total_cost())
             self.__find_dual_variables()
@@ -288,12 +284,9 @@ class ApproximationMethod:
                 if nb_indicator > best_indicator:
                     best_indicator = nb_indicator
                     self.entering_variable = (i, j)
-            # if nb_indicator == 0:
-            #     self.halt(message="Multiple Solutions Found")
             self.transportation_table[i][j] = nb_indicator
 
     def __find_dual_variables(self) -> None:
-        # self.__check_degenerated_solutions()
         u_vars, v_vars = self.__find_equation_vars()
         equations = list()
         for i, j in self.assigned_indices:
@@ -333,8 +326,3 @@ class ApproximationMethod:
                 u_vars.append(u)
 
         return tuple(u_vars), tuple(v_vars)
-
-    def __check_degenerated_solutions(self) -> None:
-        assigned = len(self.assigned_indices)
-        if assigned != self.columns + self.rows - 1:
-            self.halt(message="Degenerated Solutions Found")

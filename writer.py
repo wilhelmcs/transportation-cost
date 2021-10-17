@@ -42,13 +42,9 @@ class Writer:
         u_column = matrix[:, -1]
         matrix = np.delete(matrix, -1, axis=1)
         matrix = np.delete(matrix, -1, axis=0)
-        row_headers = [f'V{i}={v_row[i - 1]}' for i in range(1, n)]
-        columns_headers = [f'U{j}={u_column[j - 1]}' for j in range(1, m)]
-        return DataFrame(matrix, row_headers, columns_headers)
-
-    @staticmethod
-    def write_halting(message) -> None:
-        print(f'{message}')
+        column_headers = [f'V{i}={v_row[i - 1]}' for i in range(1, m)]
+        row_headers = [f'U{j}={u_column[j - 1]}' for j in range(1, n)]
+        return DataFrame(matrix, row_headers, column_headers)
 
     def write_to_file(self, text: str) -> None:
         with open(self.filename, 'a') as f:
