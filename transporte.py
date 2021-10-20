@@ -52,16 +52,16 @@ parser.add_argument('file', metavar='file.txt', type=argparse.FileType("r"),
 args = parser.parse_args()
 
 
-def solve():
+def main():
     solving_methods = {
         MethodType.NORTH_WEST_METHOD: NorthWestMethod,
         MethodType.VOGEL_METHOD: VogelMethod,
         MethodType.RUSSELL_METHOD: RussellMethod
     }
     desired_method = MethodType(args.method)
-    solver = solving_methods.get(desired_method)(file=args.file, method=desired_method)
+    solver = solving_methods.get(desired_method)(file=args.file)
     solver.solve()
 
 
 if __name__ == "__main__":
-    solve()
+    main()
