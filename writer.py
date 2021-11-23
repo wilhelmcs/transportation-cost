@@ -1,8 +1,9 @@
-import numpy as np
+from typing import Tuple, List
 
+import numpy as np
 from pandas import DataFrame
 
-from typing import Tuple, List
+Position = Tuple[int, int]
 
 
 class Writer:
@@ -34,10 +35,10 @@ class Writer:
         :return: dataframe with replaced values & headers
         """
 
-        matrix[matrix == 0.0] = "-"
+        matrix[matrix == 0.0] = '-'
         n, m = matrix.shape
-        row_headers = [f'S{i}' for i in range(1, n)] + ["Demand"]
-        columns_headers = [f'D{j}' for j in range(1, m)] + ["Supply"]
+        row_headers = [f'S{i}' for i in range(1, n)] + ['Demand']
+        columns_headers = [f'D{j}' for j in range(1, m)] + ['Supply']
         return DataFrame(matrix, row_headers, columns_headers)
 
     @staticmethod
@@ -53,7 +54,7 @@ class Writer:
         """
 
         # is none doesn't work for comparing values
-        matrix[matrix == None] = "-"
+        matrix[matrix == None] = '-'
         n, m = matrix.shape
         v_row = matrix[-1]
         u_column = matrix[:, -1]
@@ -128,7 +129,9 @@ class Writer:
             print(state)
         self.write_to_file(state)
 
-    def write_loop(self, loop: List[Tuple], entering: Tuple, leaving: Tuple):
+    def write_loop(self, loop: List[Position],
+                   entering: Tuple,
+                   leaving: Tuple):
         """
         Indicates what's the loop in a legible way:
         start -> loop -> end
@@ -139,14 +142,16 @@ class Writer:
                         assigment in the entire loop
         """
 
-        loop = [f'{pos} -> ' for pos in loop]
-        loop[-1] = loop[-1].replace('->', '')
-        loop = '[Loop] = ' + ''.join(loop)
-        entering = f'[Entering pos] = {entering}\n'
-        leaving = f'[Leaving pos] = {leaving}\n'
-        self.write_to_file(f'{entering}{leaving}{loop}\n\n')
+        loop_path = [f'{pos} -> ' for pos in loop]
+        loop_path[-1] = loop_path[-1].replace('->', '')
+        format_loop = '[Loop] = ' + ''.join(loop_path)
+        format_entering = f'[Entering pos] = {entering}\n'
+        format_leaving = f'[Leaving pos] = {leaving}\n'
+        self.write_to_file(f'{format_entering}{format_leaving}{format_loop}\n\n')
 
-    def write_initial_solution(self, matrix: np.ndarray, demand: np.ndarray, supply: np.ndarray) -> None:
+    def write_initial_solution(self, matrix: np.ndarray,
+                               demand: np.ndarray,
+                               supply: np.ndarray) -> None:
         """
         Indicates what's the initial assigment table with the demand and supply column added
 
@@ -157,6 +162,6 @@ class Writer:
 
         matrix[-1] = demand
         matrix[:, -1] = supply
-        df = self.frame_assignment_table(matrix)
-        print(f'Inititial Assignment table\n{df}\n\n')
-        self.write_to_file(f'Assignment table\n{df}\n\n')
+        dataframe = self.frame_assignment_table(matrix)
+        print(f'Inititial Assignment table\n{dataframe}\n\n')
+        self.write_to_file(f'Assignment table\n{dataframe}\n\n')

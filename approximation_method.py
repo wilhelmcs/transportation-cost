@@ -1,11 +1,16 @@
+import sys
 from abc import abstractmethod
 from fractions import Fraction as Frac
-from typing import Any, Tuple, List, NoReturn
+from typing import Any, Tuple, List, NoReturn, Union
 
 import numpy as np
 from sympy import Symbol, linsolve
 
 from writer import Writer
+
+# typing aliases
+Variable = Union[int, Symbol]
+Position = Tuple[int, int]
 
 
 class ApproximationMethod:
@@ -16,9 +21,9 @@ class ApproximationMethod:
     writer: Writer
 
     improvable: bool
-    entering_variable: tuple
-    leaving_variable: tuple
-    loop: List[Tuple]
+    entering_variable: Position
+    leaving_variable: Position
+    loop: List[Position]
 
     rows: int
     columns: int
@@ -175,7 +180,7 @@ class ApproximationMethod:
         """
 
         self.writer.write_halting(message)
-        exit(1)
+        sys.exit(1)
 
     def improve(self) -> None:
         """
@@ -190,18 +195,21 @@ class ApproximationMethod:
         while self.improvable:
             self.__create_loop()
             self.__assign_loop()
-            self.writer.write_transportation_iteration(transportation_matrix=self.transportation_table,
-                                                       assignment_matrix=self.assign_table,
-                                                       iteration=f'[Iteration] = {i}')
-            self.writer.write_loop(self.loop, entering=self.entering_variable, leaving=self.leaving_variable)
+            self.writer.write_transportation_iteration(
+                 transportation_matrix=self.transportation_table,
+                 assignment_matrix=self.assign_table,
+                 iteration=f'[Iteration] = {i}')
+            self.writer.write_loop(self.loop, entering=self.entering_variable,
+                                   leaving=self.leaving_variable)
             self.writer.write_current_cost(self.total_cost())
             self.__find_dual_variables()
             self.__find_non_basic_indicators()
             i += 1
-        self.writer.write_transportation_iteration(transportation_matrix=self.transportation_table,
-                                                   assignment_matrix=self.assign_table,
-                                                   iteration=f'[Final Iteration]',
-                                                   final=True)
+        self.writer.write_transportation_iteration(
+            transportation_matrix=self.transportation_table,
+            assignment_matrix=self.assign_table,
+            iteration='[Final Iteration]',
+            final=True)
         self.writer.write_optimal_cost(self.total_cost())
 
     def total_cost(self) -> int:
@@ -257,7 +265,8 @@ class ApproximationMethod:
                     self.unassign(*pos)
         self.assigned_indices -= unassigned
         # finally assign the new variable with the lowest value (demand & supply stays the same)
-        self.assign(leaving_assignment, *self.entering_variable, new_demand_and_supply=False)
+        i, j = self.entering_variable
+        self.assign(leaving_assignment, i=i, j=j, new_demand_and_supply=False)
 
     def __create_cost_table(self, file) -> None:
         """
@@ -303,8 +312,6 @@ class ApproximationMethod:
         # balance the problem in case of different supply sum
         elif supply_sum < demand_sum:
             self.__insert_fictional_supply(fictional_value=diff)
-        else:
-            pass
 
     def __insert_fictional_demand(self, fictional_value: int) -> None:
         """
@@ -338,7 +345,8 @@ class ApproximationMethod:
         self.assign_table[:, self.supply_column] = self.cost_table[:, self.supply_column]
         self.assign_table[self.demand_row] = self.cost_table[self.demand_row]
         # assume all indices are unassigned
-        self.unassigned_indices = {(i, j) for i in range(self.demand_row) for j in range(self.supply_column)}
+        self.unassigned_indices =\
+            {(i, j) for i in range(self.demand_row) for j in range(self.supply_column)}
 
     def __create_transportation_table(self) -> None:
         """
@@ -358,7 +366,7 @@ class ApproximationMethod:
         """
         start = [self.entering_variable]
 
-        def find(loop: List[Tuple]) -> List[Tuple]:
+        def find(loop: List[Position]) -> List[Position]:
             """
             Recursively finds the smallest loop the from
             a given list of visited indices
@@ -382,7 +390,8 @@ class ApproximationMethod:
         self.loop = find(loop=start)
 
     @staticmethod
-    def find_neighbors(loop: List[Tuple], not_visited: List[Tuple]) -> List[Tuple]:
+    def find_neighbors(loop: List[Position],
+                       not_visited: List[Position]) -> List[Position]:
         """
         Finds a list of possible indices to visited based on the last index
         of the list
@@ -401,12 +410,11 @@ class ApproximationMethod:
         loop_incomplete = len(loop) < 2
         if loop_incomplete:
             return row_neighbors + column_neighbors
-        else:
-            previous_row, _ = loop[-2]
-            is_row_move = previous_row == last_row
-            if is_row_move:
-                return column_neighbors
-            return row_neighbors
+        previous_row, _ = loop[-2]
+        is_row_move = previous_row == last_row
+        if is_row_move:
+            return column_neighbors
+        return row_neighbors
 
     def __find_non_basic_indicators(self) -> None:
         """
@@ -439,15 +447,15 @@ class ApproximationMethod:
             u = u_vars[i]
             v = v_vars[j]
             c = self.cost_table[i][j]
-            eq = u + v - c
-            equations.append(eq)
+            equ = u + v - c
+            equations.append(equ)
         solved_v, solved_u = self.__solve_variables(equations, u_vars, v_vars)
         self.transportation_table[-1, :-1] = solved_v
         self.transportation_table[:-1, -1] = solved_u
 
     def __solve_variables(self, equations: List[Symbol],
-                          u_vars: Tuple[Symbol],
-                          v_vars: Tuple[Symbol]):
+                          u_vars: Tuple[Variable, ...],
+                          v_vars: Tuple[Variable, ...]):
         """
         Finds a value for each U var & V var by having a
         list of equations
@@ -466,16 +474,17 @@ class ApproximationMethod:
 
         # TypeError occurs when a dual variable is not solvable hence
         # it's a degenerated solution
-        except TypeError as te:
+        except TypeError as t_e:
             self.writer.write_optimal_cost(self.total_cost())
-            self.halt(f'Caught exception "{te}"\nDegenerated solutions found, exiting...')
+            self.halt(f'Caught exception "{t_e}"\nDegenerated solutions found, exiting...')
 
-    def __find_equation_vars(self) -> Tuple[Tuple, Tuple]:
+    def __find_equation_vars(self) -> Tuple[Tuple[Variable, ...],
+                                            Tuple[Variable, ...]]:
         """
         Creates a list of U vars & V vars with the exception
         of the most assigned row or column which takes the value of
         zero
-        
+
         :return: tuple with the v vars & u vars
         """
         if self.assignments_of_column[self.most_assigned_column] >= \
@@ -485,7 +494,7 @@ class ApproximationMethod:
             zero_candidate = Symbol(f'U{self.most_assigned_row}')
 
         # V1, V2, V3 ... Vm
-        v_vars = list()
+        v_vars: List[Union[int, Symbol]] = list()
         for i in range(1, self.columns):
             v = Symbol(f'V{i}')
             if v == zero_candidate:
@@ -494,7 +503,7 @@ class ApproximationMethod:
                 v_vars.append(v)
 
         # U1, U2, U3 ... Un
-        u_vars = list()
+        u_vars: List[Union[int, Symbol]] = list()
         for j in range(1, self.rows):
             u = Symbol(f'U{j}')
             if u == zero_candidate:

@@ -1,7 +1,8 @@
 from abc import ABC
 
-from approximation_method import ApproximationMethod
 import numpy as np
+
+from approximation_method import ApproximationMethod
 
 
 class RussellMethod(ApproximationMethod, ABC):

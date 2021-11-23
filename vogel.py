@@ -1,7 +1,8 @@
 from abc import ABC
 
-from approximation_method import ApproximationMethod
 import numpy as np
+
+from approximation_method import ApproximationMethod
 
 
 class VogelMethod(ApproximationMethod, ABC):
@@ -87,7 +88,7 @@ class VogelMethod(ApproximationMethod, ABC):
         self.cost_table[self.demand_row][self.columns] = (biggest_diff, biggest_row)
 
     @staticmethod
-    def minimum_diff(costs: np.ndarray, omit: set) -> int:
+    def minimum_diff(costs: np.ndarray, omit: set) -> float:
         """
         Given a np.ndarray of values, calculate
         second lowest - lowest (minimum difference)
@@ -99,22 +100,22 @@ class VogelMethod(ApproximationMethod, ABC):
 
         # find diff between two lowest elements
         lowest, second_lowest = np.inf, np.inf
-        for i, c in enumerate(costs):
+        for i, cost in enumerate(costs):
             # don't use omitted rows or columns
             if i in omit:
                 continue
-            elif c < lowest:
+            if cost < lowest:
                 second_lowest = lowest
-                lowest = c
-            elif c < second_lowest:
-                second_lowest = c
+                lowest = cost
+            elif cost < second_lowest:
+                second_lowest = cost
             else:
                 continue
         # case in which there was only 1 element left
         if second_lowest == np.inf:
             return lowest
-        else:
-            return second_lowest - lowest
+
+        return second_lowest - lowest
 
     def choose_cost(self) -> None:
         """
