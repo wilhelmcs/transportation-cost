@@ -60,7 +60,7 @@ The file must come as shown below:
     8,6,10
     10,4,9
 
-The `-h` flag displays the help for the program execution
+The `-h` flag displays the help for the program execution. test
 
 ---
 ## Authors
